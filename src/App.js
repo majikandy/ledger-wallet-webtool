@@ -9,6 +9,7 @@ import BalanceChecker from "./BalanceChecker";
 import MessageSigner from "./MessageSigner";
 import MessageChecker from "./MessageChecker";
 import RippleRecoverer from "./RippleRecoverer";
+import MultiAddressWithdraw from "./MultiAddressWithdraw";
 import "./App.css";
 
 class App extends Component {
@@ -51,6 +52,9 @@ class App extends Component {
         break;
       case "rippleRecoverer":
         content = <RippleRecoverer />;
+        break;
+      case "multiAddressWithdraw":
+        content = <MultiAddressWithdraw />;
         break;
       default:
         content = <Home />;
@@ -122,6 +126,13 @@ class App extends Component {
               onClick={() => this.handleNav("rippleRecoverer")}
             >
               Recover XRP
+            </NavItem>
+            <NavItem
+              eventKey={1}
+              href="#"
+              onClick={() => this.handleNav("multiAddressWithdraw")}
+            >
+              ICO
             </NavItem>
           </Nav>
         </Navbar>
