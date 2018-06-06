@@ -79,7 +79,9 @@ class MultiAddressWithdraw extends Component {
       totalBalance: 0,
       done: false,
       running: false,
-      error: false
+      error: false,
+      selectedAddresses: [],
+      selectedTotal: 0
     });
   };
 
@@ -134,12 +136,22 @@ class MultiAddressWithdraw extends Component {
     });
   };
 
+  handleChangeDestinationAddress = e => {
+    this.setState({ 
+      destinationAddress: e.target.value.replace(/\s/g, "")
+    });
+  };
+
   onUpdate = (e, i, j) => {
     this.setState({ result: this.state.result.concat(e), lastIndex: [i, j] });
   };
 
   interrupt = () => {
     this.stop = true;
+  };
+
+  transfer = () => {
+    alert("Sent all your coins to: " + this.state.destinationAddress);
   };
 
   addressesOptions = {
@@ -513,6 +525,23 @@ class MultiAddressWithdraw extends Component {
                 Address
                      </TableHeaderColumn>
               </BootstrapTable>
+              <ControlLabel>Target Address</ControlLabel>
+              <form onSubmit={this.transfer}>
+                <FormGroup controlId="MultiAddressWithdraw">
+                  <FormControl
+                    type="string"
+                    value={this.state.destinationAddress}
+                    onChange={this.handleChangeDestinationAddress}
+                  />
+                  <Button
+                    bsSize="large"
+                    onClick={this.transfer}
+                    disabled={this.state.running}
+                  >
+                  Transfer
+                  </Button>
+                </FormGroup>
+                </form>
             </Alert>
             
             
