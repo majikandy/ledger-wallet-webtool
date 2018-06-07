@@ -193,7 +193,14 @@ export var createPaymentTransaction = async (
   path,
   coin
 ) => {
+  const debugLine = "toAddress:" + recipientAddress + "\namount:" + amount + "\nuxtos:" + JSON.stringify(utxos) + "\npath:" + path + "\n" + coin;
+
+  console.log(debugLine);
+  //alert(debugLine);
+
   amount = Math.floor(amount);
+  
+
   let indexes = [];
   let txs = [];
   const devices = await Transport.list();
@@ -210,11 +217,13 @@ export var createPaymentTransaction = async (
         "/transactions/" +
         h +
         "/hex";
+      //alert(path);
       const res = await fetch(path);
       if (!res.ok) {
         throw "not ok";
       }
       const data = await res.json();
+      //alert(JSON.stringify(data));
       let tx = btc.splitTransaction(
         data[0].hex,
         Networks[coin].isSegwitSupported,

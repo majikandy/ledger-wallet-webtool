@@ -7,21 +7,22 @@ import Inspector from "react-inspector";
 import {
   Button,
   Checkbox,
-  form,
   FormControl,
   FormGroup,
   ControlLabel,
   ButtonToolbar,
   Alert,
-  ListGroup,
   DropdownButton,
   MenuItem
 } from "react-bootstrap";
 import Networks from "./Networks";
 import { findAddress, initialize } from "./PathFinderUtils";
-import { estimateTransactionSize } from "./TransactionUtils";
 import Errors from "./Errors";
-import HDAddress from "./HDAddress"
+import HDAddress from "./HDAddress";
+import {
+  estimateTransactionSize,
+  createPaymentTransaction
+} from "./TransactionUtils";
 
 const initialState = {
   done: false,
@@ -29,7 +30,7 @@ const initialState = {
   coin: "105",
   error: false,
   segwit: false,
-  path: "44'/105'/0'",
+  path: "44'/105'/1'",
   useXpub: false,
   xpub58: "",
   gap: 20,
@@ -39,7 +40,8 @@ const initialState = {
   lastIndex: [0, 0],
   totalBalance: 0,
   selectedTotal: 0,
-  selectedAddresses: []
+  selectedAddresses: [],
+  selectedUtxos: []
 };
 
 class MultiAddressWithdraw extends Component {
@@ -144,12 +146,11 @@ class MultiAddressWithdraw extends Component {
   };
 
   onUpdate = (e, i, j) => {
-    console.log(e)
-    console.log(this.state.allTxs[e.address]);
-    if (this.state.allTxs[e.address].keys.length === 0)
+    const internalAddress = j === 0;
+    const noTransactionsAtAddress = Object.keys(this.state.allTxs[e.address]).length === 0;
+    if (!this.state.destinationAddress && internalAddress && noTransactionsAtAddress)
     {
-      debugger;
-      this.setState({destinationAddress: e.address});
+       this.setState({destinationAddress: e.address});
     }
 
     this.setState({
@@ -160,14 +161,11 @@ class MultiAddressWithdraw extends Component {
       this.setState({
         result: this.state.result.concat(e), lastIndex: [i, j] 
       });
+      this.prepare (e, e.address);
   };
 
   interrupt = () => {
     this.stop = true;
-  };
-
-  transfer = () => {
-    alert("Sent all your coins to: " + this.state.destinationAddress);
   };
 
   addressesOptions = {
@@ -346,6 +344,197 @@ class MultiAddressWithdraw extends Component {
       }
     }
   };
+  getFees = async () => {
+    try {
+      var path =
+        "https://api.ledgerwallet.com/blockchain/v2/" +
+        Networks[this.state.coin].apiName +
+        "/fees";
+      let response = await fetchWithRetries(path);
+      let data = await response.json();
+      this.setState({ standardFees: data });
+    } catch (e) {}
+  };
+
+  prepare = async (e, address) => {
+    //e.preventDefault();
+    // this.setState({
+    //   running: true,
+    //   prepared: false,
+    //   done: false,
+    //   empty: false,
+    //   error: false
+    // });
+    let txs = [];
+    let spent = {};
+    try {
+      await this.getFees();
+    } catch (e) {
+      this.onError(Errors.u2f);
+    }
+    try {
+      var apiPath =
+        "https://api.ledgerwallet.com/blockchain/v2/" +
+        Networks[this.state.coin].apiName +
+        "/addresses/" +
+        address +
+        "/transactions?noToken=true";
+      const iterate = async (blockHash = "") => {
+        const res = await fetchWithRetries(apiPath + blockHash);
+        const data = await res.json();
+        txs = txs.concat(data.txs);
+        if (!data.truncated) {
+          console.log(txs);
+          var utxos = {};
+          txs.forEach(tx => {
+            tx.inputs.forEach(input => {
+              if (input.address === address) {
+                if (!spent[input.output_hash]) {
+                  spent[input.output_hash] = {};
+                }
+                spent[input.output_hash][input.output_index] = true;
+              }
+            });
+          });
+          txs.forEach(tx => {
+            tx.outputs.forEach(output => {
+              if (output.address === address) {
+                if (!spent[tx.hash]) {
+                  spent[tx.hash] = {};
+                }
+                if (!spent[tx.hash][output.output_index]) {
+                  if (!utxos[tx.hash]) {
+                    utxos[tx.hash] = {};
+                  }
+                  utxos[tx.hash][output.output_index] = tx;
+                }
+              }
+            });
+          });
+          return [utxos, address];
+        } else {
+          return await iterate(
+            "&blockHash=" + data.txs[data.txs.length - 1].block.hash
+          );
+        }
+      };
+      let d = await iterate();
+      this.onPrepared(d);
+    } catch (e) {
+      this.onError(Errors.networkError);
+    }
+  };
+
+  onPrepared = d => {
+    const utxos = d[0];
+    let balance = 0;
+    let inputs = 0;
+    for (var utxo in utxos) {
+      if (utxos.hasOwnProperty(utxo)) {
+        for (var index in utxos[utxo]) {
+          if (utxos[utxo].hasOwnProperty(index)) {
+            balance += utxos[utxo][index].outputs[index].value;
+            inputs++;
+          }
+        }
+      }
+    }
+    if (balance <= 0) {
+      this.setState({
+        empty: true,
+        prepared: true,
+        running: false,
+        //balance: balance,
+        address: d[1]
+      });
+    } else {
+      let txSize = Networks[this.state.coin].handleFeePerByte
+        ? estimateTransactionSize(inputs, 1, this.state.segwit).max
+        : Math.floor(
+            estimateTransactionSize(inputs, 1, this.state.segwit).max / 1000
+          ) + 1;
+      this.setState({
+        empty: false,
+        txSize,
+        prepared: true,
+        running: false,
+        selectedUtxos: Object.assign({}, this.state.selectedUtxos, utxos),
+        //balance: balance,
+        //address: d[1],
+        customFeesVal: 0,
+        fees:
+          txSize * this.state.standardFees[6] < balance
+            ? txSize * this.state.standardFees[6]
+            : 0,
+        customFees: txSize * this.state.standardFees[6] >= balance
+      });
+    }
+  };
+
+  transfer = async () => {
+    this.setState({ running: true, done: false, error: false });
+    try {
+      let tx;
+      tx = await createPaymentTransaction(
+        this.state.destinationAddress,
+        (this.state.selectedTotal * 10 ** Networks[this.state.coin].satoshi) - (this.state.fees*1000),
+        this.state.selectedUtxos,
+        "https://api.ledgerwallet.com/blockchain/v2/",
+        this.state.coin
+      );
+      var body = JSON.stringify({
+        tx: tx
+      });
+      //alert(body);
+      var path =
+        "https://api.ledgerwallet.com/blockchain/v2/" +
+        Networks[this.state.coin].apiName +
+        "/transactions/send";
+      console.log("res", tx);
+      let res;
+      try {
+        res = await fetchWithRetries(path, {
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": JSON.stringify(body).length
+          },
+          method: "post",
+          body
+        });
+        if (!res.ok) {
+          throw "not ok";
+        }
+      } catch (e) {
+        if (e == "not ok") {
+          let err = await res.text();
+          err = JSON.parse(err);
+          console.log(err);
+          err = JSON.parse(err.error);
+          throw Errors.sendFail + err.error.message;
+        } else {
+          throw Errors.networkError;
+        }
+      }
+      this.onSent(res);
+    } catch (e) {
+      this.onError(e);
+    }
+  };
+
+  onSent = async tx => {
+    let error = false;
+    const json = await tx.json();
+    if (!json) {
+      console.log(error);
+      error = tx;
+    }
+    this.setState({
+      prepared: false,
+      running: false,
+      done: json.result,
+      error
+    });
+  };
 
   
   render() {
@@ -423,7 +612,7 @@ class MultiAddressWithdraw extends Component {
               title={this.state.useXpub ? derivations[1] : derivations[0]}
               disabled={this.state.running || this.state.paused}
               bsStyle="primary"
-              bsSize="medium"
+              bsSize="large"
               style={{ marginBottom: "15px" }}
             >
               <MenuItem onClick={() => this.handleChangeUseXpub(false)}>
@@ -543,6 +732,12 @@ class MultiAddressWithdraw extends Component {
               " " +
               Networks[this.state.coin].unit}
             </p>
+            <p>
+            Fees:{" "}
+            {this.state.fees /
+                    10 ** Networks[this.state.coin].satoshi}{" "}
+                  {Networks[this.state.coin].unit}
+            </p>
           {/* <BootstrapTable
             data={this.state.selectedAddresses} >
                 <TableHeaderColumn dataField="address" isKey={true}>
@@ -550,13 +745,11 @@ class MultiAddressWithdraw extends Component {
                  </TableHeaderColumn>
           </BootstrapTable> */}
           <ControlLabel>Target Address</ControlLabel>
-          <form onSubmit={this.transfer}>
             <FormGroup controlId="MultiAddressWithdraw">
               <FormControl
                 type="string"
                 value={this.state.destinationAddress}
                 onChange={this.handleChangeDestinationAddress}
-                disabled={true}
               />
               <Button
                 bsSize="large"
@@ -566,7 +759,6 @@ class MultiAddressWithdraw extends Component {
               Consolidate selected funds
               </Button>
             </FormGroup>
-          </form>
           </div>
           )}
           {this.state.paused && (
