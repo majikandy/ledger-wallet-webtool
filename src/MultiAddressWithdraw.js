@@ -81,7 +81,8 @@ class MultiAddressWithdraw extends Component {
       running: false,
       error: false,
       selectedAddresses: [],
-      selectedTotal: 0
+      selectedTotal: 0,
+      currentPathBeingChecked:""
     });
   };
 
@@ -143,7 +144,22 @@ class MultiAddressWithdraw extends Component {
   };
 
   onUpdate = (e, i, j) => {
-    this.setState({ result: this.state.result.concat(e), lastIndex: [i, j] });
+    console.log(e)
+    console.log(this.state.allTxs[e.address]);
+    if (this.state.allTxs[e.address].keys.length === 0)
+    {
+      debugger;
+      this.setState({destinationAddress: e.address});
+    }
+
+    this.setState({
+      currentPathBeingChecked: e.path
+    });
+  
+    if (e.balance !== 0)
+      this.setState({
+        result: this.state.result.concat(e), lastIndex: [i, j] 
+      });
   };
 
   interrupt = () => {
@@ -490,6 +506,7 @@ class MultiAddressWithdraw extends Component {
               >
                 Reset
               </Button>
+              <p>{(this.state.done || this.state.paused) || this.state.currentPathBeingChecked}</p>
             </ButtonToolbar>
           </FormGroup>
           {this.state.error && (
@@ -511,40 +528,46 @@ class MultiAddressWithdraw extends Component {
                   " " +
                   Networks[this.state.coin].unit}
               </p>
-              <p >
-                Selected total:{" "}
-                {(
-                  this.state.selectedTotal 
-                ).toString() +
-                  " " +
-                  Networks[this.state.coin].unit}
-              </p>
-              <BootstrapTable
-                data={this.state.selectedAddresses} >
-                    <TableHeaderColumn dataField="address" isKey={true}>
-                Address
-                     </TableHeaderColumn>
-              </BootstrapTable>
-              <ControlLabel>Target Address</ControlLabel>
-              <form onSubmit={this.transfer}>
-                <FormGroup controlId="MultiAddressWithdraw">
-                  <FormControl
-                    type="string"
-                    value={this.state.destinationAddress}
-                    onChange={this.handleChangeDestinationAddress}
-                  />
-                  <Button
-                    bsSize="large"
-                    onClick={this.transfer}
-                    disabled={this.state.running}
-                  >
-                  Transfer
-                  </Button>
-                </FormGroup>
-                </form>
+              
             </Alert>
             
             
+          )}
+          {this.state.done && this.state.selectedAddresses.length>0 && (
+            <div>
+            <p>
+            Selected total:{" "}
+            {(
+              this.state.selectedTotal 
+            ).toString() +
+              " " +
+              Networks[this.state.coin].unit}
+            </p>
+          {/* <BootstrapTable
+            data={this.state.selectedAddresses} >
+                <TableHeaderColumn dataField="address" isKey={true}>
+            Address
+                 </TableHeaderColumn>
+          </BootstrapTable> */}
+          <ControlLabel>Target Address</ControlLabel>
+          <form onSubmit={this.transfer}>
+            <FormGroup controlId="MultiAddressWithdraw">
+              <FormControl
+                type="string"
+                value={this.state.destinationAddress}
+                onChange={this.handleChangeDestinationAddress}
+                disabled={true}
+              />
+              <Button
+                bsSize="large"
+                onClick={this.transfer}
+                disabled={this.state.running}
+              >
+              Consolidate selected funds
+              </Button>
+            </FormGroup>
+          </form>
+          </div>
           )}
           {this.state.paused && (
             <Alert>
