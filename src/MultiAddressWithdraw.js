@@ -41,7 +41,8 @@ const initialState = {
   totalBalance: 0,
   selectedTotal: 0,
   selectedAddresses: [],
-  selectedUtxos: []
+  selectedUtxos: [],
+  selectedAssociatedKeysets: []
 };
 
 class MultiAddressWithdraw extends Component {
@@ -84,7 +85,8 @@ class MultiAddressWithdraw extends Component {
       error: false,
       selectedAddresses: [],
       selectedTotal: 0,
-      currentPathBeingChecked:""
+      currentPathBeingChecked:"",
+      selectedAssociatedKeysets:[]
     });
   };
 
@@ -168,7 +170,7 @@ class MultiAddressWithdraw extends Component {
         result: this.state.result.concat(e), lastIndex: [i, j]
       
       });
-      this.prepare (e, e.address);
+      this.prepare (e, e.address, e.path);
     }
   };
 
@@ -364,7 +366,7 @@ class MultiAddressWithdraw extends Component {
     } catch (e) {}
   };
 
-  prepare = async (e, address) => {
+  prepare = async (e, address, hdPath) => {
     //e.preventDefault();
     // this.setState({
     //   running: true,
@@ -373,7 +375,7 @@ class MultiAddressWithdraw extends Component {
     //   empty: false,
     //   error: false
     // });
-    alert(address);
+    let bip32hdPath = hdPath;
     let txs = [];
     let spent = {};
     try {
@@ -388,7 +390,6 @@ class MultiAddressWithdraw extends Component {
         "/addresses/" +
         address +
         "/transactions?noToken=true";
-      alert(apiPath);
       console.log(apiPath);
       const iterate = async (blockHash = "") => {
         const res = await fetchWithRetries(apiPath + blockHash);
@@ -422,7 +423,7 @@ class MultiAddressWithdraw extends Component {
               }
             });
           });
-          return [utxos, address];
+          return [utxos, address, bip32hdPath];
         } else {
           return await iterate(
             "&blockHash=" + data.txs[data.txs.length - 1].block.hash
@@ -439,6 +440,8 @@ class MultiAddressWithdraw extends Component {
   onPrepared = d => {
     console.log("preparing utxos etc......")
     const utxos = d[0];
+    const hdPath = d[2];
+
     let balance = 0;
     let inputs = 0;
     for (var utxo in utxos) {
@@ -469,6 +472,10 @@ class MultiAddressWithdraw extends Component {
           const localUtxoDebug = "current uxto:" + JSON.stringify(utxos);
           alert(localUtxoDebug);
           console.log(localUtxoDebug);
+      
+      let keysets = this.state.selectedAssociatedKeysets.concat(Array(utxos.length).fill(hdPath));
+ 
+      alert("keysets " + keysets);
 
       this.setState({
         empty: false,
@@ -476,6 +483,7 @@ class MultiAddressWithdraw extends Component {
         prepared: true,
         running: false,
         selectedUtxos: Object.assign({}, this.state.selectedUtxos, utxos),
+        selectedAssociatedKeysets: keysets,
         //balance: balance,
         //address: d[1],
         customFeesVal: 0,
@@ -493,13 +501,14 @@ class MultiAddressWithdraw extends Component {
 
   transfer = async () => {
     this.setState({ running: true, done: false, error: false });
+    alert("transfering for private key paths: " + this.state.selectedAssociatedKeysets)
     try {
       let tx;
       tx = await createPaymentTransaction(
         this.state.destinationAddress,
-        (this.state.selectedTotal * 10 ** Networks[this.state.coin].satoshi) - (this.state.fees*1000),
+        (this.state.selectedTotal * 10 ** Networks[this.state.coin].satoshi) - (this.state.fees*100),
         this.state.selectedUtxos,
-        this.state.changePath,
+        this.state.selectedAssociatedKeysets,
         this.state.coin
       );
       var body = JSON.stringify({
