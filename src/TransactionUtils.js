@@ -245,6 +245,17 @@ export var createPaymentTransaction = async (
     coin
   );
   console.log("output script", outputScript);
+  alert("creating")
+  alert(JSON.stringify(inputs));
+  console.log("INPUTS: " + inputs);
+  alert(Array(indexes.length).fill(path));
+  alert(outputScript.toString("hex"));
+  alert(JSON.stringify(Networks[coin]));
+  alert(p2sh)
+  alert(Networks[coin].areTransactionTimestamped
+    ? Math.floor(Date.now() / 1000) - 15 * 60
+    : undefined)
+
   const res = await btc.createPaymentTransactionNew(
     inputs,
     Array(indexes.length).fill(path),
@@ -256,6 +267,7 @@ export var createPaymentTransaction = async (
     Networks[coin].areTransactionTimestamped
       ? Math.floor(Date.now() / 1000) - 15 * 60
       : undefined
-  );
+  ); 
+  console.log("tx: " + res);
   return res;
 };
