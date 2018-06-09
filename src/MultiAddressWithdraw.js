@@ -30,10 +30,10 @@ const initialState = {
   coin: "105",
   error: false,
   segwit: false,
-  path: "44'/105'/1'",
+  path: "44'/105'/0'",
   useXpub: false,
   xpub58: "",
-  gap: 20,
+  gap: 2,
   result: [],
   allTxs: {},
   paused: false,
@@ -41,7 +41,8 @@ const initialState = {
   totalBalance: 0,
   selectedTotal: 0,
   selectedAddresses: [],
-  selectedUtxos: []
+  selectedUtxos: [],
+  selectedAssociatedKeysets: []
 };
 
 class MultiAddressWithdraw extends Component {
@@ -65,7 +66,7 @@ class MultiAddressWithdraw extends Component {
         paused: true
       });
     } else {
-      Object.assign(state, this.state);
+      Object.assign(state, this.state); 
     }
     localStorage.setItem("LedgerBalanceChecker", JSON.stringify(state));
   }
@@ -84,7 +85,8 @@ class MultiAddressWithdraw extends Component {
       error: false,
       selectedAddresses: [],
       selectedTotal: 0,
-      currentPathBeingChecked:""
+      currentPathBeingChecked:"",
+      selectedAssociatedKeysets:[]
     });
   };
 
@@ -147,21 +149,29 @@ class MultiAddressWithdraw extends Component {
 
   onUpdate = (e, i, j) => {
     const internalAddress = j === 0;
+    const changeAddress = j === 1;
+
     const noTransactionsAtAddress = Object.keys(this.state.allTxs[e.address]).length === 0;
     if (!this.state.destinationAddress && internalAddress && noTransactionsAtAddress)
     {
        this.setState({destinationAddress: e.address});
+    }
+    if (!this.state.changePath && changeAddress && noTransactionsAtAddress)
+    {
+       this.setState({changePath: e.path});
     }
 
     this.setState({
       currentPathBeingChecked: e.path
     });
   
-    if (e.balance !== 0)
+    if (e.balance > 0) {
       this.setState({
-        result: this.state.result.concat(e), lastIndex: [i, j] 
+        result: this.state.result.concat(e), lastIndex: [i, j]
+      
       });
-      this.prepare (e, e.address);
+      this.prepare (e, e.address, e.path);
+    }
   };
 
   interrupt = () => {
@@ -356,7 +366,7 @@ class MultiAddressWithdraw extends Component {
     } catch (e) {}
   };
 
-  prepare = async (e, address) => {
+  prepare = async (e, address, hdPath) => {
     //e.preventDefault();
     // this.setState({
     //   running: true,
@@ -365,6 +375,7 @@ class MultiAddressWithdraw extends Component {
     //   empty: false,
     //   error: false
     // });
+    let bip32hdPath = hdPath;
     let txs = [];
     let spent = {};
     try {
@@ -379,6 +390,7 @@ class MultiAddressWithdraw extends Component {
         "/addresses/" +
         address +
         "/transactions?noToken=true";
+      console.log(apiPath);
       const iterate = async (blockHash = "") => {
         const res = await fetchWithRetries(apiPath + blockHash);
         const data = await res.json();
@@ -411,7 +423,7 @@ class MultiAddressWithdraw extends Component {
               }
             });
           });
-          return [utxos, address];
+          return [utxos, address, bip32hdPath];
         } else {
           return await iterate(
             "&blockHash=" + data.txs[data.txs.length - 1].block.hash
@@ -426,7 +438,10 @@ class MultiAddressWithdraw extends Component {
   };
 
   onPrepared = d => {
+    console.log("preparing utxos etc......")
     const utxos = d[0];
+    const hdPath = d[2];
+
     let balance = 0;
     let inputs = 0;
     for (var utxo in utxos) {
@@ -453,12 +468,22 @@ class MultiAddressWithdraw extends Component {
         : Math.floor(
             estimateTransactionSize(inputs, 1, this.state.segwit).max / 1000
           ) + 1;
+      
+          const localUtxoDebug = "current uxto:" + JSON.stringify(utxos);
+          alert(localUtxoDebug);
+          console.log(localUtxoDebug);
+      
+      let keysets = this.state.selectedAssociatedKeysets.concat(Array(utxos.length).fill(hdPath));
+ 
+      alert("keysets " + keysets);
+
       this.setState({
         empty: false,
         txSize,
         prepared: true,
         running: false,
         selectedUtxos: Object.assign({}, this.state.selectedUtxos, utxos),
+        selectedAssociatedKeysets: keysets,
         //balance: balance,
         //address: d[1],
         customFeesVal: 0,
@@ -468,24 +493,30 @@ class MultiAddressWithdraw extends Component {
             : 0,
         customFees: txSize * this.state.standardFees[6] >= balance
       });
+      const stateUtxoDebug = "in state:" + JSON.stringify(this.state.selectedUtxos);
+      alert(stateUtxoDebug);
+      console.log(stateUtxoDebug);
     }
   };
 
   transfer = async () => {
     this.setState({ running: true, done: false, error: false });
+    alert("transfering for private key paths: " + this.state.selectedAssociatedKeysets)
     try {
       let tx;
       tx = await createPaymentTransaction(
         this.state.destinationAddress,
-        (this.state.selectedTotal * 10 ** Networks[this.state.coin].satoshi) - (this.state.fees*1000),
+        (this.state.selectedTotal * 10 ** Networks[this.state.coin].satoshi) - (this.state.fees*100),
         this.state.selectedUtxos,
-        "https://api.ledgerwallet.com/blockchain/v2/",
+        this.state.selectedAssociatedKeysets,
         this.state.coin
       );
       var body = JSON.stringify({
         tx: tx
       });
-      //alert(body);
+      alert(body);
+      console.log(body);
+      
       var path =
         "https://api.ledgerwallet.com/blockchain/v2/" +
         Networks[this.state.coin].apiName +
@@ -722,7 +753,7 @@ class MultiAddressWithdraw extends Component {
             
             
           )}
-          {this.state.done && this.state.selectedAddresses.length>0 && (
+          {this.state.done && this.state.selectedAddresses && this.state.selectedAddresses.length>0 && (
             <div>
             <p>
             Selected total:{" "}

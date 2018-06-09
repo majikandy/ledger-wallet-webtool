@@ -190,10 +190,10 @@ export var createPaymentTransaction = async (
   recipientAddress,
   amount,
   utxos,
-  path,
+  associatedPrivateKeySetPaths,
   coin
 ) => {
-  const debugLine = "toAddress:" + recipientAddress + "\namount:" + amount + "\nuxtos:" + JSON.stringify(utxos) + "\npath:" + path + "\n" + coin;
+  const debugLine = "toAddress:" + recipientAddress + "\namount:" + amount + "\nuxtos:" + JSON.stringify(utxos) + "\nassociatedPrivateKeySetPaths:" + associatedPrivateKeySetPaths + "\n" + coin;
 
   console.log(debugLine);
   //alert(debugLine);
@@ -245,9 +245,20 @@ export var createPaymentTransaction = async (
     coin
   );
   console.log("output script", outputScript);
+  alert("creating")
+  alert(JSON.stringify(inputs));
+  console.log("INPUTS: " + inputs);
+  alert(associatedPrivateKeySetPaths);
+  alert(outputScript.toString("hex"));
+  alert(JSON.stringify(Networks[coin]));
+  alert(p2sh)
+  alert(Networks[coin].areTransactionTimestamped
+    ? Math.floor(Date.now() / 1000) - 15 * 60
+    : undefined)
+
   const res = await btc.createPaymentTransactionNew(
     inputs,
-    Array(indexes.length).fill(path),
+    associatedPrivateKeySetPaths,
     undefined,
     outputScript.toString("hex"),
     undefined,
@@ -256,6 +267,7 @@ export var createPaymentTransaction = async (
     Networks[coin].areTransactionTimestamped
       ? Math.floor(Date.now() / 1000) - 15 * 60
       : undefined
-  );
+  ); 
+  console.log("tx: " + res);
   return res;
 };
