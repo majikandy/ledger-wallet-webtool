@@ -242,28 +242,13 @@ class MultiAddressWithdraw extends Component {
             return 0;
           } else {
             allTxs[address] = {};
-            var incoming = _(txs).flatMap(tx => tx.outputs)
-                                .filter(output => output.address == address)
-                                .sumBy(output => output.value)
-                                .value();
-            var outgoing = _(txs).flatMap(tx => tx.inputs)
-                                .filter(input => input.address == address)
-                                .sumBy(input => input.value)
-                                .value();
-            
-            balance = incoming - outgoing;
-            debugger;
             txs.forEach(tx => {
-              let localBalance = _(tx.outputs)
-                                      .filter(output => output.address == address)
-                                      .sumBy(output => output.value)
-                                      .value();
+              let localBalance = _(tx.outputs).filter(output => output.address == address)
+                                              .sumBy(output => output.value);
 
-              localBalance -= _(tx.inputs)
-                                      .filter(input => input.address == address)
-                                      .sumBy(input => input.value)
-                                      .value();
-                                      
+              localBalance -= _(tx.inputs).filter(input => input.address == address)
+                                          .sumBy(input => input.value);
+
               balance += localBalance;
               allTxs[address][tx.hash] = {
                 display: {
