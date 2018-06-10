@@ -3,7 +3,6 @@ import { BootstrapTable, TableHeaderColumn } from "react-bootstrap-table";
 import "react-bootstrap-table/dist/react-bootstrap-table.min.css";
 import fetchWithRetries from "./FetchWithRetries";
 import Inspector from "react-inspector";
-
 import {
   Button,
   Checkbox,
@@ -19,10 +18,8 @@ import Networks from "./Networks";
 import { findAddress, initialize } from "./PathFinderUtils";
 import Errors from "./Errors";
 import HDAddress from "./HDAddress";
-import {
-  estimateTransactionSize,
-  createPaymentTransaction
-} from "./TransactionUtils";
+import { estimateTransactionSize, createPaymentTransaction } from "./TransactionUtils";
+import _ from "lodash";
 
 const initialState = {
   done: false,
@@ -245,18 +242,28 @@ class MultiAddressWithdraw extends Component {
             return 0;
           } else {
             allTxs[address] = {};
+            var incoming = _(txs).flatMap(tx => tx.outputs)
+                                .filter(output => output.address == address)
+                                .sumBy(output => output.value)
+                                .value();
+            var outgoing = _(txs).flatMap(tx => tx.inputs)
+                                .filter(input => input.address == address)
+                                .sumBy(input => input.value)
+                                .value();
+            
+            balance = incoming - outgoing;
+            debugger;
             txs.forEach(tx => {
-              let localBalance = 0;
-              tx.outputs.forEach(output => {
-                if (output.address === address) {
-                  localBalance += output.value;
-                }
-              });
-              tx.inputs.forEach(input => {
-                if (input.address === address) {
-                  localBalance -= input.value;
-                }
-              });
+              let localBalance = _(tx.outputs)
+                                      .filter(output => output.address == address)
+                                      .sumBy(output => output.value)
+                                      .value();
+
+              localBalance -= _(tx.inputs)
+                                      .filter(input => input.address == address)
+                                      .sumBy(input => input.value)
+                                      .value();
+                                      
               balance += localBalance;
               allTxs[address][tx.hash] = {
                 display: {
