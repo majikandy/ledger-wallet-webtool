@@ -527,7 +527,7 @@ class MultiAddressWithdraw extends Component {
         res = await fetchWithRetries(path, {
           headers: {
             "Content-Type": "application/json",
-            "Content-Length": JSON.stringify(body).length
+            "Content-Length": body.length
           },
           method: "post",
           body
@@ -640,6 +640,7 @@ class MultiAddressWithdraw extends Component {
         <form onSubmit={this.recover}>
           <FormGroup controlId="MultiAddressWithdraw">
             <DropdownButton
+              id="MultiAddressWithdraw"
               title={this.state.useXpub ? derivations[1] : derivations[0]}
               disabled={this.state.running || this.state.paused}
               bsStyle="primary"

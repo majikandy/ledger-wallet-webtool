@@ -298,7 +298,7 @@ class FundsTransfer extends Component {
         res = await fetchWithRetries(path, {
           headers: {
             "Content-Type": "application/json",
-            "Content-Length": JSON.stringify(body).length
+            "Content-Length": body.length
           },
           method: "post",
           body
