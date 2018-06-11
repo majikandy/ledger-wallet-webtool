@@ -205,6 +205,15 @@ class MultiAddressWithdraw extends Component {
     }
   };
 
+  getBalance = (tx,address) => {
+    let balance = _(tx.outputs).filter(output => output.address == address)
+                               .sumBy(output => output.value);
+
+    balance -= _(tx.inputs).filter(input => input.address == address)
+                           .sumBy(input => input.value);
+    return balance;
+  }
+
   recover = async e => {
     let [i, j] = this.state.lastIndex;
     this.stop = false;
@@ -231,10 +240,11 @@ class MultiAddressWithdraw extends Component {
             this.state.segwit
           );
       console.log("xpub is", xpub58);
-      const iterate = async (txs, address, balance, blockHash = "") => {
+      const iterate = async (txs, address, blockHash = "") => {
         const res = await fetchWithRetries(apiPath + blockHash);
         const data = await res.json();
         txs = txs.concat(data.txs);
+        var balance = 0;
         if (!data.truncated) {
           if (data.txs.length < 1 && j === 0) {
             emptyStreak++;
@@ -242,20 +252,16 @@ class MultiAddressWithdraw extends Component {
             return 0;
           } else {
             allTxs[address] = {};
+            
             txs.forEach(tx => {
-              let localBalance = _(tx.outputs).filter(output => output.address == address)
-                                              .sumBy(output => output.value);
-
-              localBalance -= _(tx.inputs).filter(input => input.address == address)
-                                          .sumBy(input => input.value);
-
+              var localBalance = this.getBalance(tx,address);
               balance += localBalance;
               allTxs[address][tx.hash] = {
                 display: {
                   time: tx.received_at,
                   balance:
                     (
-                      localBalance /
+                      balance /
                       10 ** Networks[this.state.coin].satoshi
                     ).toString() +
                     " " +
@@ -270,7 +276,6 @@ class MultiAddressWithdraw extends Component {
           return await iterate(
             txs,
             address,
-            balance,
             "&blockHash=" + data.txs[data.txs.length - 1].block.hash
           );
         }
@@ -304,7 +309,7 @@ class MultiAddressWithdraw extends Component {
               "/addresses/" +
               address +
               "/transactions?noToken=true";
-            let balance = await iterate([], address, 0);
+            let balance = await iterate([], address);
             total += balance;
             this.onUpdate(
               {
@@ -460,14 +465,11 @@ class MultiAddressWithdraw extends Component {
         : Math.floor(
             estimateTransactionSize(inputs, 1, this.state.segwit).max / 1000
           ) + 1;
-      
-          const localUtxoDebug = "current uxto:" + JSON.stringify(utxos);
-          alert(localUtxoDebug);
-          console.log(localUtxoDebug);
+          console.log(utxos);
       
       let keysets = this.state.selectedAssociatedKeysets.concat(Array(utxos.length).fill(hdPath));
  
-      alert("keysets " + keysets);
+      console.log("keysets " + keysets);
 
       this.setState({
         empty: false,
@@ -485,15 +487,13 @@ class MultiAddressWithdraw extends Component {
             : 0,
         customFees: txSize * this.state.standardFees[6] >= balance
       });
-      const stateUtxoDebug = "in state:" + JSON.stringify(this.state.selectedUtxos);
-      alert(stateUtxoDebug);
-      console.log(stateUtxoDebug);
+      console.log(this.state.selectedUtxos);
     }
   };
 
   transfer = async () => {
     this.setState({ running: true, done: false, error: false });
-    alert("transfering for private key paths: " + this.state.selectedAssociatedKeysets)
+    console.log(this.state.selectedAssociatedKeysets);
     try {
       let tx;
       tx = await createPaymentTransaction(
@@ -506,7 +506,6 @@ class MultiAddressWithdraw extends Component {
       var body = JSON.stringify({
         tx: tx
       });
-      alert(body);
       console.log(body);
       
       var path =
