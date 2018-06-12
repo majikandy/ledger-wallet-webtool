@@ -30,7 +30,7 @@ const initialState = {
   path: "44'/105'/0'",
   useXpub: false,
   xpub58: "",
-  gap: 2,
+  gap: 20,
   result: [],
   allTxs: {},
   paused: false,
@@ -465,11 +465,22 @@ class MultiAddressWithdraw extends Component {
         : Math.floor(
             estimateTransactionSize(inputs, 1, this.state.segwit).max / 1000
           ) + 1;
-          console.log(utxos);
       
-      let keysets = this.state.selectedAssociatedKeysets.concat(Array(utxos.length).fill(hdPath));
+          const localUtxoDebug = "current uxto:" + JSON.stringify(utxos);
+          //alert(localUtxoDebug);
+          console.log(localUtxoDebug);
+      
+    let numOfInputsToBeSigned = 0;
+    for (let h of Object.keys(utxos)) {
+      for (let i in utxos[h]) {
+        numOfInputsToBeSigned++;
+      }
+    }
+    alert(numOfInputsToBeSigned);
+      let keysets = this.state.selectedAssociatedKeysets.concat(Array(numOfInputsToBeSigned).fill(hdPath));
  
-      console.log("keysets " + keysets);
+      //alert("keysets " + keysets);
+     console.log("keysets " + keysets);
 
       this.setState({
         empty: false,
@@ -487,13 +498,15 @@ class MultiAddressWithdraw extends Component {
             : 0,
         customFees: txSize * this.state.standardFees[6] >= balance
       });
-      console.log(this.state.selectedUtxos);
+      const stateUtxoDebug = "in state:" + JSON.stringify(this.state.selectedUtxos);
+      //alert(stateUtxoDebug);
+      console.log(stateUtxoDebug);
     }
   };
 
   transfer = async () => {
     this.setState({ running: true, done: false, error: false });
-    console.log(this.state.selectedAssociatedKeysets);
+    //alert("transfering for private key paths: " + this.state.selectedAssociatedKeysets)
     try {
       let tx;
       tx = await createPaymentTransaction(

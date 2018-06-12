@@ -285,8 +285,8 @@ class FundsTransfer extends Component {
       var body = JSON.stringify({
         tx: tx
       });
-      alert(body);
-      console.log(body);
+      //alert(body);
+      console.log("body: " + body);
       
       var path =
         "https://api.ledgerwallet.com/blockchain/v2/" +
